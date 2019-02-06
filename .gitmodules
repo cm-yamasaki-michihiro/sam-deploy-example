@@ -1,0 +1,3 @@
+[submodule "ci-cd-hands-on-codedeploy"]
+	path = ci-cd-hands-on-codedeploy
+	url = https://github.com/katainaka0503/ci-cd-hands-on-codedeploy

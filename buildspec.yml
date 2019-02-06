@@ -1,0 +1,45 @@
+version: 0.2
+
+env:
+  variables:
+    ENV: dev
+    GITHUB_TOKEN: 913a1ea18a03dac5225dec0b6829e807c01a9dbc
+    GITHUB_REPO_NAME: sam-deploy-example
+    GITHUB_OWNER_NAME: cm-yamasaki-michihiro
+phases:
+  install:
+      commands:
+        - pip install aws-sam-cli
+  pre_build:
+    commands:
+      - env
+      - git clone "https://$GITHUB_TOKEN@github.com/$GITHUB_OWNER_NAME/$GITHUB_REPO_NAME.git"
+      - cd $GITHUB_REPO_NAME && ls
+      - docker run --name localstack --env SERVICES=s3,dynamodb -d -p 4572:4572 localstack/localstack
+      - timeout 60 sh -c "until nc -vz localhost 4572; do echo .; sleep 1; done"
+  build:
+    commands:
+      - sam validate
+      - export PYTHONPATH=$(pwd)/src
+      - pipenv install -d
+      - pipenv run pycodestyle --show-source --show-pep8 src tests
+      - pipenv run python -m pytest tests
+      - pipenv lock -r > src/requirements.txt
+      - pipenv lock -r | pip install -r /dev/stdin -t src/vendor/
+      - >
+        sam package 
+        --template template.yaml
+        --s3-bucket katainaka-test-template-bucket
+        --output-template-file packaged.yaml
+      - >
+        sam deploy
+        --template-file packaged.yaml
+        --stack-name test
+        --parameter-overrides $(cat environments/${ENV}.ini | grep -vE '^#' | tr '\n' ' ' | awk '{print}')
+        --capabilities CAPABILITY_IAM
+        --no-fail-on-empty-changeset
+      # role-arn
+
+cache:
+  paths:
+    - '/root/.cache/pip/**/*'
